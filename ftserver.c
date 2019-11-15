@@ -32,12 +32,12 @@ void Error(const char *msg) {
 	exit(0);
 }
 
-/* startup(int port): Creates and sets up a socket on the port number. Begins listening, but only accepts 1
+/* Startup(int port): Creates and sets up a socket on the port number. Begins listening, but only accepts 1
  * connection at a time.
  * Pre: Port in int form.
  * Post: Created and listening socket. Returns listening socket file descriptor.
  */
-int startup(int port) {
+int Startup(int port) {
 	int listenSocket;
 	struct sockaddr_in serverAddress;
 
@@ -63,17 +63,33 @@ int startup(int port) {
 
 }
 
+/* HandleRequest():
+ * Pre:
+ * Post:
+ */
+void HandleRequest() {
 
+
+
+}
 
 int main(int argc, char *argv[]) {
+	int port, listenSocket;
 
-
+	// Check for and validate port number.
 	if (argc != 2) {
 		fprintf(stderr, "USAGE: ./%s server_port\n", argv[0]);
 		exit(0);
 	}
 
-	// atoi(argv[1]) for portnum in int
+	port = atoi(argv[1]);
+	if (port == 0 || port < 1028 || port > 65535) {
+		fprintf(stderr, "Please choose a valid port between 1028 and 65535.\n",);
+		exit(0);
+	}
+
+	// Set up and receive socket for listening
+	listenSocket = Startup(port);
 
 
 	return 0;
