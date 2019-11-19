@@ -69,7 +69,7 @@ int Startup(int port) {
  * Post: Returns -1 if there was an error, or 1 if appropriate information wass sent to the client.
  */
 int HandleRequest(int estSock) {
-	int chRead, i;
+	int chRead, i, dataPort;
 	char buffer[256], *token, command[3][50];
 
 
@@ -84,13 +84,36 @@ int HandleRequest(int estSock) {
 	i = 0;
 	while (token = strsep(&buffer, " ")) {		// Store pieces (space as delim) in token
 		if (i >= 3){				// Confirm only up to 3 commands are sent (eg "2031 -g file")
-			send(estSock, "Invalid command.", 16, 0);
+			send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
 			return -1;
 		}
 		strcpy(command[i], token);		// Copy token into array
 		i++;					// Increment index
 	}
 
+	// Validate port number
+	dataPort = atoi(command[0]);
+	if (dataPort < 1028 || dataPort > 65535) {
+		send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
+		return -1;
+	}
+
+	// Validate command. Logic: this OR that -> not (this OR that) == not this AND not that
+	// If the command is neither -l not -g, report the error.
+	if (strcmp(command[1], "-l") != 0 && strcmp(command[1], "-g") != 0) {
+		send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
+		return -1;
+	}
+	
+	// Execute command
+	// Send directory
+	if (strcmp(command[1], "-l") == 0) {
+
+	}
+	else {
+
+	}
+	
 
 }
 
