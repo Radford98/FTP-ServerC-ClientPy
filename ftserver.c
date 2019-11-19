@@ -8,6 +8,7 @@
  * Citations:
  * 	Basic framework (setting up socket, how the send and recv commands work, etc.) based on material from cs344
  * 	Beej's guide (http://beej.us/guide/bgnet/) was used as a reference.
+ * 		Particularly: getpeername and getnameinfo to report name of connecting client.
  * 	Info on how to use fread to read the contents of an entire file:
  * 		https://stackoverflow.com/questions/14002954/c-programming-how-to-read-the-whole-file-contents-into-a-buffer
  *
@@ -65,18 +66,39 @@ int Startup(int port) {
 /* HandleRequest(estSock): Handles a request sent by the client on the established connection passed it.
  * Will either list directory contents with '-l' or send a file with '-g <filename>'.
  * Pre: A TCP socket already established with a client.
- * Post: Appropriate information is sent to the client.
+ * Post: Returns -1 if there was an error, or 1 if appropriate information wass sent to the client.
  */
-void HandleRequest(int estSock) {
+int HandleRequest(int estSock) {
+	int chRead, i;
+	char buffer[256], *token, command[3][50];
 
+
+	// Receive the command with the client.
+	memset(buffer, '\0', 256);
+	chRead = recv(estSock, buffer, 255, 0);		// Read command, leaving '\0' at end
+	if (chRead < 0) {
+		Error("ERROR reading socket.");
+	}
+
+	// Break the command into its individual parts
+	i = 0;
+	while (token = strsep(&buffer, " ")) {		// Store pieces (space as delim) in token
+		if (i >= 3){				// Confirm only up to 3 commands are sent (eg "2031 -g file")
+			send(estSock, "Invalid command.", 16, 0);
+			return -1;
+		}
+		strcpy(command[i], token);		// Copy token into array
+		i++;					// Increment index
+	}
 
 
 }
 
 int main(int argc, char *argv[]) {
-	int port, listenSocket, establishedSocket;
+	int port, listenSocket, establishedSocket, valid;
 	socklen_t sizeOfClient;
 	struct sockaddr_in clientAddress;
+	char host[1024], service[1024];
 
 	// Check for and validate port number.
 	if (argc != 2) {
@@ -94,6 +116,8 @@ int main(int argc, char *argv[]) {
 	// Set up and receive socket for listening
 	listenSocket = Startup(port);
 
+	printf("Server open on %d.\n", port);
+
 	// Continuously accept clients and handle their requests. Must be interrupted with a signal.
 	while(1) {
 		// Accept a connection, waiting until a connection is established.
@@ -103,8 +127,21 @@ int main(int argc, char *argv[]) {
 			Errror("ERROR accepting connection.");
 		}
 
-		// Pass new socket to function to handle the request
-		HandleRequest(establishedSocket);
+		// Print client info
+		getpeername(establishedSocket, (struct sockaddr *)&clientAddress, &sizeOfClient);
+		memset(host, '\0', sizeof(host));
+		memset(service, '\0', sizeof(service));
+		getnameinfo(&clientAddress, sizeOfClient, host, sizeof(host), service, sizeof(service), 0);
+// could use NI_NOFQDN to "return only the hostname part of t he fully qualified domain name"
+// could also try setting service to NULL, and sizeof(service) to 0
+		printf("Connection from %s.\n", host);
+
+		// Pass new socket to function to handle the request. It returns -1 on an error, in which case
+		// the program attempts to handle the request again. When a 1 is returned, the loop breaks.
+		valid = -1;
+		while(valid == -1) {
+			valid = HandleRequest(establishedSocket);
+		}
 
 		// Close the socket
 		close(establishedSocket);
