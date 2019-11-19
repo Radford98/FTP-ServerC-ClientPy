@@ -32,8 +32,7 @@ void Error(const char *msg) {
 	exit(0);
 }
 
-/* Startup(int port): Creates and sets up a socket on the port number. Begins listening, but only accepts 1
- * connection at a time.
+/* Startup(int port): Creates and sets up a TCP socket on the port number. Begins listening and returns the socket.
  * Pre: Port in int form.
  * Post: Created and listening socket. Returns listening socket file descriptor.
  */
@@ -57,24 +56,27 @@ int Startup(int port) {
 	if (bind(listenSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
 		Error("ERROR binding socket.");
 	}
-	listen(listenSocket, 1);					// Need to accept 1 connection at a time
+	listen(listenSocket, 5);	// Only needs to accept 1 connection, but set up a backlog of up to 5.
 
 	return listenSocket;
 
 }
 
-/* HandleRequest():
- * Pre:
- * Post:
+/* HandleRequest(estSock): Handles a request sent by the client on the established connection passed it.
+ * Will either list directory contents with '-l' or send a file with '-g <filename>'.
+ * Pre: A TCP socket already established with a client.
+ * Post: Appropriate information is sent to the client.
  */
-void HandleRequest() {
+void HandleRequest(int estSock) {
 
 
 
 }
 
 int main(int argc, char *argv[]) {
-	int port, listenSocket;
+	int port, listenSocket, establishedSocket;
+	socklen_t sizeOfClient;
+	struct sockaddr_in clientAddress;
 
 	// Check for and validate port number.
 	if (argc != 2) {
@@ -82,14 +84,33 @@ int main(int argc, char *argv[]) {
 		exit(0);
 	}
 
+	// Convert the argument to a number and validate it's not a reserved port.
 	port = atoi(argv[1]);
-	if (port == 0 || port < 1028 || port > 65535) {
+	if (port < 1028 || port > 65535) {
 		fprintf(stderr, "Please choose a valid port between 1028 and 65535.\n",);
 		exit(0);
 	}
 
 	// Set up and receive socket for listening
 	listenSocket = Startup(port);
+
+	// Continuously accept clients and handle their requests. Must be interrupted with a signal.
+	while(1) {
+		// Accept a connection, waiting until a connection is established.
+		sizeOfClient = sizeof(clientAddress);
+		establishedSocket = accept(listenSocket, (struct sockaddr *)&clientAddress, &sizeOfClient);
+		if (establishedSocket < 0) {
+			Errror("ERROR accepting connection.");
+		}
+
+		// Pass new socket to function to handle the request
+		HandleRequest(establishedSocket);
+
+		// Close the socket
+		close(establishedSocket);
+		
+
+	}
 
 
 	return 0;
