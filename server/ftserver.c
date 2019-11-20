@@ -4,13 +4,17 @@
  * the command line for a request from ftclient and will either display the current directory or send
  * the requested file.
  * Course: CS 372-400 Computer Networks
- * Last Modified: 11/14/2019
+ * Last Modified: 11/19/2019
  * Citations:
- * 	Basic framework (setting up socket, how the send and recv commands work, etc.) based on material from cs344
+ * 	Basic framework (setting up socket, how the send and recv commands work, etc.) based on material from cs344.
+ * 	Moving through directories in C also based on material from cs344.
  * 	Beej's guide (http://beej.us/guide/bgnet/) was used as a reference.
  * 		Particularly: getpeername and getnameinfo to report name of connecting client.
  * 	Info on how to use fread to read the contents of an entire file:
  * 		https://stackoverflow.com/questions/14002954/c-programming-how-to-read-the-whole-file-contents-into-a-buffer
+ * 	Using strsep insteak of strtok (because the latter is a pain):
+ * 		https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
+ * 		http://man7.org/linux/man-pages/man3/strsep.3.html
  *
  */
 
@@ -19,8 +23,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <netdb.h>
 
@@ -48,7 +54,7 @@ int Startup(int port) {
 	serverAddress.sin_addr.s_addr = INADDR_ANY;			// Allow any address
 
 	// Set up socket
-	listSocket = socket(AF_INET, SOCK_STREAM, 0);			// Create TCP socket
+	listenSocket = socket(AF_INET, SOCK_STREAM, 0);			// Create TCP socket
 	if (listenSocket < 0) {
 		Error("ERROR creating socket.");
 	}
@@ -70,7 +76,12 @@ int Startup(int port) {
  */
 int HandleRequest(int estSock) {
 	int chRead, i, dataPort;
-	char buffer[256], *token, command[3][50];
+	char buffer[256], *token, command[3][50], dirContents[1024];
+	char suffix[] = ".txt";
+	// Variables for checking directory contents
+	DIR *dir;
+	struct dirent *file;
+	struct stat dirAttributes;
 
 
 	// Receive the command with the client.
@@ -108,7 +119,22 @@ int HandleRequest(int estSock) {
 	// Execute command
 	// Send directory
 	if (strcmp(command[1], "-l") == 0) {
+		// Check all files in the current directory for .txt files
+		memset(dirContents, '\0', sizeof(dirContents));
+		dir = opendir(".");					// Open directory of server
+		while ((file = readdir(dir)) != NULL) {			// Check each file
+			if (strstr(file->d_name, suffix) != NULL) {	// Check if .txt file
+				strcat(dirContents, file->d_name);	// Add file name to dir Contents
+				strcat(dirContents, "\n");		// Add a new line for readability
+			}
+		}
+		closedir(dir);
 
+		// Send directory contents to client
+		chRead = send(estSock, dirContents, strlen(dirContents), 0);
+		if (chRead < 0) {
+			Error("ERROR sending dir contents.");
+		}
 	}
 	else {
 
@@ -132,7 +158,7 @@ int main(int argc, char *argv[]) {
 	// Convert the argument to a number and validate it's not a reserved port.
 	port = atoi(argv[1]);
 	if (port < 1028 || port > 65535) {
-		fprintf(stderr, "Please choose a valid port between 1028 and 65535.\n",);
+		fprintf(stderr, "Please choose a valid port between 1028 and 65535.\n");
 		exit(0);
 	}
 
@@ -147,14 +173,14 @@ int main(int argc, char *argv[]) {
 		sizeOfClient = sizeof(clientAddress);
 		establishedSocket = accept(listenSocket, (struct sockaddr *)&clientAddress, &sizeOfClient);
 		if (establishedSocket < 0) {
-			Errror("ERROR accepting connection.");
+			Error("ERROR accepting connection.");
 		}
 
 		// Print client info
 		getpeername(establishedSocket, (struct sockaddr *)&clientAddress, &sizeOfClient);
 		memset(host, '\0', sizeof(host));
 		memset(service, '\0', sizeof(service));
-		getnameinfo(&clientAddress, sizeOfClient, host, sizeof(host), service, sizeof(service), 0);
+		getnameinfo((struct sockaddr *)&clientAddress, sizeOfClient, host, sizeof(host), service, sizeof(service), 0);
 // could use NI_NOFQDN to "return only the hostname part of t he fully qualified domain name"
 // could also try setting service to NULL, and sizeof(service) to 0
 		printf("Connection from %s.\n", host);
