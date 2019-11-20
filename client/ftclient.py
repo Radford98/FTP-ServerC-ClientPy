@@ -20,6 +20,7 @@ Pre: Program ran with command-line arguments: <flip num> <control port> <data po
 Post: Returns socket connected to the server.
 """
 def InitContact():
+	# Convert ports to ints (dataPort only for validation in this function)
 	serverPort = int(sys.argv[2])
 	dataPort = int(sys.argv[3])
 
@@ -44,25 +45,42 @@ def InitContact():
 	return clientSocket
 
 """
-MakeRequest():
+MakeRequest(controlSocket): Constructs a string from the command line arguments and sends the encoded request
+to the server.
+Pre: Socket connected to ftserver.c
+Post: Request sent to server.
+"""
+def MakeRequest(controlSocket):
+	# Send request
+	request = sys.argv[3] + " " + " " + sys.argv[4]
+	if sys.argv[4] == "-g":
+		request += " " + sys.argv[5]
+	print(request)
+	controlSocket.send(request.encode())
+	#controlSocket.close()	# Close the socket now that we're done
+
+"""
+RecData(): Creates the data connection socket and receives data from the server.
 Pre:
 Post:
 """
-def MakeRequest():
-	pass
-
-"""
-RecData():
-Pre:
-Post:
-"""
-def RecData():
-	pass
-
-
+def RecData(clientSocket):
+	##### Create data socket #####
+	data = clientSocket.recv(1024)
+	if sys.argv[4] == "-l":
+		print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[3])
+		print(data.decode())
+	clientSocket.close()
 
 
 if __name__ == "__main__":
 	# Set up socket
 	clientSocket = InitContact()
+
+	# Make a request from the server
+	MakeRequest(clientSocket)
+
+	# Receive requested data
+	RecData(clientSocket)
+
 

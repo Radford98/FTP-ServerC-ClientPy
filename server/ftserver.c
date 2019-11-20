@@ -75,10 +75,13 @@ int Startup(int port) {
  * Post: Returns -1 if there was an error, or 1 if appropriate information wass sent to the client.
  */
 int HandleRequest(int estSock) {
+
+printf("Enter HandleRequest\n");
 	int chRead, i, dataPort;
-	char buffer[256], *token, command[3][50], dirContents[1024];
-	char suffix[] = ".txt";
+	char buffer[256], *token, command[3][50], dirContents[1024], *tokenize, *freeMe;
+
 	// Variables for checking directory contents
+	char suffix[] = ".txt";
 	DIR *dir;
 	struct dirent *file;
 	struct stat dirAttributes;
@@ -92,8 +95,15 @@ int HandleRequest(int estSock) {
 	}
 
 	// Break the command into its individual parts
+	// First set up the iterator, then copy the buffer into a string that strsep can manipulate.
+	// Since strsep messes with the pointer it's given and strdup uses malloc, use another pointer
+	// for freeing the memory once the request from the client has been parsed.
 	i = 0;
-	while (token = strsep(&buffer, " ")) {		// Store pieces (space as delim) in token
+	freeMe = tokenize = strdup(buffer);
+	while ( (token = strsep(&tokenize, " ")) ) {		// Store pieces (space as delim) in token
+		if (strlen(token) == 0) {	// Prevent strsep from saving the spaces
+			continue;
+		}
 		if (i >= 3){				// Confirm only up to 3 commands are sent (eg "2031 -g file")
 			send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
 			return -1;
@@ -101,11 +111,12 @@ int HandleRequest(int estSock) {
 		strcpy(command[i], token);		// Copy token into array
 		i++;					// Increment index
 	}
+	free(freeMe);
 
 	// Validate port number
 	dataPort = atoi(command[0]);
 	if (dataPort < 1028 || dataPort > 65535) {
-		send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
+		send(estSock, "Please choose a valid port between 1028 and 65535", 49, 0);
 		return -1;
 	}
 
@@ -116,6 +127,7 @@ int HandleRequest(int estSock) {
 		return -1;
 	}
 	
+printf("About to execute command\n");
 	// Execute command
 	// Send directory
 	if (strcmp(command[1], "-l") == 0) {
@@ -140,6 +152,7 @@ int HandleRequest(int estSock) {
 
 	}
 	
+	return 1;
 
 }
 
@@ -168,7 +181,7 @@ int main(int argc, char *argv[]) {
 	printf("Server open on %d.\n", port);
 
 	// Continuously accept clients and handle their requests. Must be interrupted with a signal.
-	while(1) {
+//	while(1) {
 		// Accept a connection, waiting until a connection is established.
 		sizeOfClient = sizeof(clientAddress);
 		establishedSocket = accept(listenSocket, (struct sockaddr *)&clientAddress, &sizeOfClient);
@@ -188,15 +201,15 @@ int main(int argc, char *argv[]) {
 		// Pass new socket to function to handle the request. It returns -1 on an error, in which case
 		// the program attempts to handle the request again. When a 1 is returned, the loop breaks.
 		valid = -1;
-		while(valid == -1) {
+//		while(valid == -1) {
 			valid = HandleRequest(establishedSocket);
-		}
+//		}
 
 		// Close the socket
 		close(establishedSocket);
 		
 
-	}
+//	}
 
 
 	return 0;
