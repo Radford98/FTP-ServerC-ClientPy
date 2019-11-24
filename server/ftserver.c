@@ -163,19 +163,31 @@ printf("open to open file\n");
 		fp = fopen(command[2], "r");	// Open file in read mode
 		if (fp == NULL) {
 			chRead = send(dataSock, "Invalid file name.", 18, 0);
+			return -1;
 		}
 printf("about to read file\n");
 		// Read data from file and send it
 		memset(buffer, '\0', sizeof(buffer));
-		chRead = 0;
 		while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-chRead += strlen(buffer);
+			chRead = send(dataSock, buffer, strlen(buffer), 0);
+			if (chRead < 0) {
+				Error("ERROR sending file.");
+			}
+			memset(buffer, '\0', sizeof(buffer));
 		}
-printf("chRead: %d\n", chRead);
+		// After contents of file are sent, send a terminator to let the client know EOF has been reached
+		chRead = send(dataSock, "@@EOF@@", 7, 0);
+		if (chRead < 0) {
+			Error("ERROR sending EOF.");
+		}
 
 		fclose(fp);
 	}
 	
+	// Close sockets
+	close(dataListen);
+	close(dataSock);
+
 	return 1;
 
 }

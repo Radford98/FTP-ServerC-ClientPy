@@ -7,12 +7,17 @@ Course: CS 372-400 Computer Networks
 Last Modified: 11/19/2019
 Citations:
 	Basic structure of how to set up a Python client from Computer Networking by Kurose and Ross.
-
+	Finding a substring
+		https://www.programiz.com/python-programming/methods/string/find
+	How to check if a file already exists:
+		https://linuxize.com/post/python-check-if-file-exists/
+		https://docs.python.org/3/library/os.path.html#os.path.isfile
 """
 
 import socket	# Access socket API
 import sys	# Access command line arguments
 from time import sleep
+from os import path
 
 """
 InitContact(): Creates a TCP socket connecting to the engr flip server from the first argument on provided port.
@@ -35,9 +40,11 @@ Post: Request sent to server.
 """
 def MakeRequest(controlSocket):
 	# Send request
+	#################################### HANDLE DOUBLE " " ###############:w
 	request = sys.argv[3] + " " + " " + sys.argv[4]
 	if sys.argv[4] == "-g":
 		request += " " + sys.argv[5]
+				
 	controlSocket.send(request.encode())
 
 	# Wait for a moment to see if an error message is returned from the server.
@@ -57,8 +64,11 @@ Pre:
 Post:
 """
 def RecData(dataPort):
-	# Create data socket to receive information; Sleep for a second to give server time to create socket
-	sleep(1)
+	serverName = sys.argv[1] + ":" + sys.argv[3]
+
+	# Create data socket to receive information
+	#Sleep for a second to give server time to create socket
+	#sleep(1)
 	dataSock = InitContact(dataPort)
 
 	# Receive first line of information, which is all the information if an invalid command
@@ -69,9 +79,64 @@ def RecData(dataPort):
 	if data.find("Invalid", 0, 10) != -1:	# This is a "minus one," not "dash l" for listing
 		print(data)
 	elif sys.argv[4] == "-l":
-		print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[3])
+		print("Receiving directory structure from " + serverName)
 		print(data)
-	clientSocket.close()
+	elif sys.argv[4] == "-g":
+		# Check if the file already exists. Create a new file if not
+		recFile = sys.argv[5]
+		if path.isfile(recFile):
+			res = input("Overwrite file \"" + recFile + "\"? (y/n)")
+			if res == "y":
+				print("Receiving \"" + recFile + "\" from " + serverName)
+			else:
+				recFile += "2"
+				print("Writing \"" + recFile + ".\"")
+
+		# Open file for writing
+		hangingByte = ""
+		with open (recFile, 'w') as wFile:
+			while(data.find("@@EOF@@") == -1):
+				wFile.write(data)
+				data = dataSock.recv(1024)
+				if hangingByte != "":
+					data = hangingByte.encode() + data
+					hangingByte = ""
+				while True:
+					try:
+						data = data.decode()
+						break
+					except:
+						hangingByte += str(data[-1])
+						data = data[:-1]
+						continue
+		clientSocket.close()
+"""
+		with open(recFile, 'w') as wFile:
+			while(data.find("@@EOF@@") == -1):
+				wFile.write(data)
+				data = dataSock.recv(1024).decode(errors='ignore')
+			# Depending on how quickly data is sent/received, there might still be valid
+			# data attached to EOF string. Remove EOF message and perform final write.
+			# Use string slicing and .find() to remove EOF message
+			wFile.write(data[:data.find("@@EOF@@")])
+"""
+"""
+		# Open file for writing
+		hangingByte = None
+		with open (recFile, 'w') as wFile:
+			while(data.find("@@EOF@@") == -1):
+				wFile.write(data)
+				data = dataSock.recv(1024)
+				if hangingByte != None:
+					data = hangingByte + data
+					hangingByte = None
+				try:
+					data = data.decode()
+				except:
+					hangingByte = data[-1]
+					data = data[:-1]
+					data = data.decode()
+"""
 
 
 if __name__ == "__main__":
