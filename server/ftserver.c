@@ -10,8 +10,6 @@
  * 	Moving through directories in C also based on material from cs344.
  * 	Beej's guide (http://beej.us/guide/bgnet/) was used as a reference.
  * 		Particularly: getpeername and getnameinfo to report name of connecting client.
- * 	Info on how to use fread to read the contents of an entire file:
- * 		https://stackoverflow.com/questions/14002954/c-programming-how-to-read-the-whole-file-contents-into-a-buffer
  * 	Using strsep insteak of strtok (because the latter is a pain):
  * 		https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
  * 		http://man7.org/linux/man-pages/man3/strsep.3.html
@@ -77,8 +75,10 @@ int Startup(int port) {
 int HandleRequest(int estSock) {
 
 printf("Enter HandleRequest\n");
-	int chRead, i, dataPort;
+	int chRead, i, dataPort, dataListen, dataSock;
 	char buffer[256], *token, command[3][50], dirContents[1024], *tokenize, *freeMe;
+	socklen_t sizeOfClient;
+	struct sockaddr_in clientAddress;
 
 	// Variables for checking directory contents
 	char suffix[] = ".txt";
@@ -126,7 +126,16 @@ printf("Enter HandleRequest\n");
 		send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
 		return -1;
 	}
-	
+printf("About to create a new socket\n");
+
+	// Create a data socket to transfer data
+	dataListen = Startup(dataPort);
+	sizeOfClient = sizeof(clientAddress);
+	dataSock = accept(dataListen, (struct sockaddr *)&clientAddress, &sizeOfClient);
+	if (dataSock < 0) {
+		Error("ERROR accepting data connection.");
+	}
+
 printf("About to execute command\n");
 	// Execute command
 	// Send directory
@@ -143,11 +152,12 @@ printf("About to execute command\n");
 		closedir(dir);
 
 		// Send directory contents to client
-		chRead = send(estSock, dirContents, strlen(dirContents), 0);
+		chRead = send(dataSock, dirContents, strlen(dirContents), 0);
 		if (chRead < 0) {
 			Error("ERROR sending dir contents.");
 		}
 	}
+	// Send requested file
 	else {
 
 	}
