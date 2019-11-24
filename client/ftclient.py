@@ -39,7 +39,17 @@ def MakeRequest(controlSocket):
 	if sys.argv[4] == "-g":
 		request += " " + sys.argv[5]
 	controlSocket.send(request.encode())
-	#controlSocket.close()	# Close the socket now that we're done
+
+	# Wait for a moment to see if an error message is returned from the server.
+	# If it timesout, it was successful and close the socket. Otherwise exit and display error message.
+	controlSocket.settimeout(1)
+	try:
+		err = controlSocket.recv(1024).decode()
+	except:
+		controlSocket.close()
+	else:
+		controlSocket.close()
+		sys.exit(err)
 
 """
 RecData(): Creates the data connection socket and receives data from the server.
@@ -55,7 +65,7 @@ def RecData(dataPort):
 	# was sent or the directory needs to be listed.
 	data = dataSock.recv(1024).decode()
 
-	# If the command was invalid, display the message from the server.
+	# If the file name was invalid, display the message from the server.
 	if data.find("Invalid", 0, 10) != -1:	# This is a "minus one," not "dash l" for listing
 		print(data)
 	elif sys.argv[4] == "-l":

@@ -76,9 +76,10 @@ int HandleRequest(int estSock) {
 
 printf("Enter HandleRequest\n");
 	int chRead, i, dataPort, dataListen, dataSock;
-	char buffer[256], *token, command[3][50], dirContents[1024], *tokenize, *freeMe;
+	char buffer[1024], *token, command[3][50], dirContents[1024], *tokenize, *freeMe;
 	socklen_t sizeOfClient;
 	struct sockaddr_in clientAddress;
+	FILE *fp;
 
 	// Variables for checking directory contents
 	char suffix[] = ".txt";
@@ -89,7 +90,7 @@ printf("Enter HandleRequest\n");
 
 	// Receive the command with the client.
 	memset(buffer, '\0', 256);
-	chRead = recv(estSock, buffer, 255, 0);		// Read command, leaving '\0' at end
+	chRead = recv(estSock, buffer, strlen(buffer)-1, 0);	// Read command, leaving '\0' at end
 	if (chRead < 0) {
 		Error("ERROR reading socket.");
 	}
@@ -126,7 +127,6 @@ printf("Enter HandleRequest\n");
 		send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
 		return -1;
 	}
-printf("About to create a new socket\n");
 
 	// Create a data socket to transfer data
 	dataListen = Startup(dataPort);
@@ -159,12 +159,29 @@ printf("About to execute command\n");
 	}
 	// Send requested file
 	else {
+printf("open to open file\n");
+		fp = fopen(command[2], "r");	// Open file in read mode
+		if (fp == NULL) {
+			chRead = send(dataSock, "Invalid file name.", 18, 0);
+		}
+printf("about to read file\n");
+		// Read data from file and send it
+		memset(buffer, '\0', sizeof(buffer));
+		chRead = 0;
+		while (fgets(buffer, sizeof(buffer), fp) != NULL) {
+chRead += strlen(buffer);
+		}
+printf("chRead: %d\n", chRead);
 
+		fclose(fp);
 	}
 	
 	return 1;
 
 }
+
+
+/*********************** Main ******************************/
 
 int main(int argc, char *argv[]) {
 	int port, listenSocket, establishedSocket, valid;
