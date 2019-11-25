@@ -4,7 +4,7 @@
  * the command line for a request from ftclient and will either display the current directory or send
  * the requested file.
  * Course: CS 372-400 Computer Networks
- * Last Modified: 11/19/2019
+ * Last Modified: 11/24/2019
  * Citations:
  * 	Basic framework (setting up socket, how the send and recv commands work, etc.) based on material from cs344.
  * 	Moving through directories in C also based on material from cs344.
@@ -67,8 +67,9 @@ int Startup(int port) {
 
 }
 
-/* HandleRequest(estSock): Handles a request sent by the client on the established connection passed it.
- * Will either list directory contents with '-l' or send a file with '-g <filename>'.
+/* HandleRequest(estSock): Handles a request sent by the client on the established connection passed it. To do
+ * so it creates a new socket to listen on for data transfer.
+ * Will either list directory contents with '-l' or send a file with '-g <filename>'. Send error messages otherwise.
  * Pre: A TCP socket already established with a client.
  * Post: Returns -1 if there was an error, or 1 if appropriate information wass sent to the client.
  */
@@ -164,7 +165,8 @@ int HandleRequest(int estSock) {
 
 		printf("Sending \"%s\" on port %d\n", command[2], dataPort);
 
-		// Read data from file and send it
+		// Read data from file and send it. fgets returns a NULL pointer when the end of the file
+		// has been reached, so the loop uses that to know when to stop.
 		memset(buffer, '\0', sizeof(buffer));
 		while (fgets(buffer, sizeof(buffer), fp) != NULL) {
 			chRead = send(dataSock, buffer, strlen(buffer), 0);
