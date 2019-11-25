@@ -12,6 +12,11 @@ Citations:
 	How to check if a file already exists:
 		https://linuxize.com/post/python-check-if-file-exists/
 		https://docs.python.org/3/library/os.path.html#os.path.isfile
+	I figured out the code myself to handle receiving split characters (see recData function), but the
+	following github clued me in that UTF-8 wasn't encoded in single bytes (by saying latin-1 is)
+	and wikipedia informed me that UTF-8 encodes in 1-4 bytes.
+		https://github.com/google/seq2seq/issues/153
+		https://en.wikipedia.org/wiki/UTF-8
 """
 
 import socket	# Access socket API
@@ -40,8 +45,7 @@ Post: Request sent to server.
 """
 def MakeRequest(controlSocket):
 	# Send request
-	#################################### HANDLE DOUBLE " " ###############:w
-	request = sys.argv[3] + " " + " " + sys.argv[4]
+	request = sys.argv[3] + " " + sys.argv[4]
 	if sys.argv[4] == "-g":
 		request += " " + sys.argv[5]
 				
@@ -53,7 +57,7 @@ def MakeRequest(controlSocket):
 	try:
 		err = controlSocket.recv(1024).decode()
 	except:
-		controlSocket.close()
+		pass
 	else:
 		controlSocket.close()
 		sys.exit(err)
@@ -63,18 +67,20 @@ RecData(): Creates the data connection socket and receives data from the server.
 Pre:
 Post:
 """
-def RecData(dataPort):
+def RecData(controlSocket, dataPort):
 	serverName = sys.argv[1] + ":" + sys.argv[3]
 
 	# Create data socket to receive information
-	#Sleep for a second to give server time to create socket
-	#sleep(1)
 	dataSock = InitContact(dataPort)
 
-	# Receive first line of information, which is all the information if an invalid command
-	# was sent or the directory needs to be listed.
-	data = dataSock.recv(1024).decode()
-
+	# First check for an invalid message on the control connection. If none come through, get
+	# data from the data connection.
+	controlSocket.settimeout(1)
+	try:
+		data = controlSocket.recv(1024).decode()
+	except:
+		data = dataSock.recv(1024).decode()
+	print(data)
 	# If the file name was invalid, display the message from the server.
 	if data.find("Invalid", 0, 10) != -1:	# This is a "minus one," not "dash l" for listing
 		print(data)
@@ -89,55 +95,42 @@ def RecData(dataPort):
 			if res == "y":
 				print("Receiving \"" + recFile + "\" from " + serverName)
 			else:
-				recFile += "2"
+				# Create a newly named file
+				txtIndex = recFile.find(".")
+				recFile = recFile[:txtIndex] + "2.txt"
 				print("Writing \"" + recFile + ".\"")
 
 		# Open file for writing
-		hangingByte = ""
 		with open (recFile, 'w') as wFile:
-			while(data.find("@@EOF@@") == -1):
-				wFile.write(data)
-				data = dataSock.recv(1024)
-				if hangingByte != "":
-					data = hangingByte.encode() + data
-					hangingByte = ""
-				while True:
-					try:
-						data = data.decode()
-						break
-					except:
-						hangingByte += str(data[-1])
-						data = data[:-1]
-						continue
-		clientSocket.close()
-"""
-		with open(recFile, 'w') as wFile:
-			while(data.find("@@EOF@@") == -1):
-				wFile.write(data)
-				data = dataSock.recv(1024).decode(errors='ignore')
-			# Depending on how quickly data is sent/received, there might still be valid
-			# data attached to EOF string. Remove EOF message and perform final write.
-			# Use string slicing and .find() to remove EOF message
-			wFile.write(data[:data.find("@@EOF@@")])
-"""
-"""
-		# Open file for writing
-		hangingByte = None
-		with open (recFile, 'w') as wFile:
-			while(data.find("@@EOF@@") == -1):
-				wFile.write(data)
-				data = dataSock.recv(1024)
-				if hangingByte != None:
-					data = hangingByte + data
-					hangingByte = None
+			"""
+			Since decode() uses UTF-8, which can use anywhere between 1 and 4 bytes, it is possible
+			a character might be sent incomplete (C doesn't care, it's just sending bytes).
+			When this happens decode() will throw an exception and the program will store that chunk
+			of data and blank out the data variable. Next time around that chunk will be added back
+			in to the data to be decoded, potentially being stashed again if the next chunk has a split
+			character. Once a chunk of data is decode()d successfully, it will write to the file
+			at the top of the loop.
+			"""
+			incomplete = bytearray()			# Create empty bytearray
+			while(data.find("@@EOF@@") == -1):		# Loop until terminator is found
+				wFile.write(data)			# Write data to file (already decoded)
+				data = dataSock.recv(1024)		# Retrieve data from socket
+				if len(incomplete) != 0:		# If there is a saved chunk of data
+					data = incomplete + data	# Combine the data
+					incomplete = bytearray()	# Reset incomplete to empty bytearray
 				try:
-					data = data.decode()
+					data = data.decode()		# Try to decode the data
 				except:
-					hangingByte = data[-1]
-					data = data[:-1]
-					data = data.decode()
-"""
-
+					incomplete += data		# If a char was incomplete, store the data
+					data = ""			# Empty data (so nothing is written)
+			# Once the terminator is found, the last string of data still needs to be written to the
+			# file. data[:XX] slices off everything from the index XX and later. find() returns the index
+			# of the terminator. Combined, data[:data.find("@@EOF@@")] removes the terminator.
+			wFile.write(data[:data.find("@@EOF@@")])
+		print("File transfer complete.")
+	# Close the sockets
+	controlSocket.close()
+	dataSock.close()
 
 if __name__ == "__main__":
 	# Validate commandline
@@ -167,6 +160,6 @@ if __name__ == "__main__":
 	MakeRequest(clientSocket)
 
 	# Receive requested data
-	RecData(dataPort)
+	RecData(clientSocket, dataPort)
 
 

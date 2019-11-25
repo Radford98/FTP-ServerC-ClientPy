@@ -73,6 +73,8 @@ int Startup(int port) {
  * Post: Returns -1 if there was an error, or 1 if appropriate information wass sent to the client.
  */
 int HandleRequest(int estSock) {
+
+printf("Enter HandleRequest\n");
 	int chRead, i, dataPort, dataListen, dataSock;
 	char buffer[1024], *token, command[3][50], dirContents[1024], *tokenize, *freeMe;
 	socklen_t sizeOfClient;
@@ -100,6 +102,9 @@ int HandleRequest(int estSock) {
 	i = 0;
 	freeMe = tokenize = strdup(buffer);
 	while ( (token = strsep(&tokenize, " ")) ) {		// Store pieces (space as delim) in token
+		if (strlen(token) == 0) {	// Prevent strsep from saving the spaces
+			continue;
+		}
 		if (i >= 3){				// Confirm only up to 3 commands are sent (eg "2031 -g file")
 			send(estSock, "Invalid command. USAGE: <port> -l/-g [file]", 43, 0);
 			return -1;
@@ -131,10 +136,10 @@ int HandleRequest(int estSock) {
 		Error("ERROR accepting data connection.");
 	}
 
+printf("About to execute command\n");
 	// Execute command
 	// Send directory
 	if (strcmp(command[1], "-l") == 0) {
-		printf("Sending directory contents on port %d\n", dataPort);
 		// Check all files in the current directory for .txt files
 		memset(dirContents, '\0', sizeof(dirContents));
 		dir = opendir(".");					// Open directory of server
@@ -154,16 +159,13 @@ int HandleRequest(int estSock) {
 	}
 	// Send requested file
 	else {
+printf("open to open file\n");
 		fp = fopen(command[2], "r");	// Open file in read mode
-		if (fp == NULL) {		// Handle invalid file name.
-			chRead = send(estSock, "Invalid file name.", 18, 0);
-			close(dataListen);
-			close(dataSock);
+		if (fp == NULL) {
+			chRead = send(dataSock, "Invalid file name.", 18, 0);
 			return -1;
 		}
-
-		printf("Sending \"%s\" on port %d\n", command[2], dataPort);
-
+printf("about to read file\n");
 		// Read data from file and send it
 		memset(buffer, '\0', sizeof(buffer));
 		while (fgets(buffer, sizeof(buffer), fp) != NULL) {
@@ -174,7 +176,7 @@ int HandleRequest(int estSock) {
 			memset(buffer, '\0', sizeof(buffer));
 		}
 		// After contents of file are sent, send a terminator to let the client know EOF has been reached
-		chRead = send(dataSock, "@@EOF@@", 7, 0);
+		chRead = send(dataSock, "@@@@", 7, 0);
 		if (chRead < 0) {
 			Error("ERROR sending EOF.");
 		}
@@ -218,7 +220,7 @@ int main(int argc, char *argv[]) {
 	printf("Server open on %d.\n", port);
 
 	// Continuously accept clients and handle their requests. Must be interrupted with a signal.
-	while(1) {
+//	while(1) {
 		// Accept a connection, waiting until a connection is established.
 		sizeOfClient = sizeof(clientAddress);
 		establishedSocket = accept(listenSocket, (struct sockaddr *)&clientAddress, &sizeOfClient);
@@ -231,18 +233,22 @@ int main(int argc, char *argv[]) {
 		memset(host, '\0', sizeof(host));
 		memset(service, '\0', sizeof(service));
 		getnameinfo((struct sockaddr *)&clientAddress, sizeOfClient, host, sizeof(host), service, sizeof(service), 0);
+// could use NI_NOFQDN to "return only the hostname part of t he fully qualified domain name"
+// could also try setting service to NULL, and sizeof(service) to 0
 		printf("Connection from %s.\n", host);
 
 		// Pass new socket to function to handle the request. It returns -1 on an error, in which case
 		// the program attempts to handle the request again. When a 1 is returned, the loop breaks.
-//		valid = -1;
+		valid = -1;
 //		while(valid == -1) {
 			valid = HandleRequest(establishedSocket);
 //		}
 
 		// Close the socket
 		close(establishedSocket);
-	}
+		
+
+//	}
 
 
 	return 0;
