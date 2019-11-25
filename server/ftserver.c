@@ -235,10 +235,7 @@ int main(int argc, char *argv[]) {
 
 		// Pass new socket to function to handle the request. It returns -1 on an error, in which case
 		// the program attempts to handle the request again. When a 1 is returned, the loop breaks.
-//		valid = -1;
-//		while(valid == -1) {
-			valid = HandleRequest(establishedSocket);
-//		}
+		HandleRequest(establishedSocket);
 
 		// Close the socket
 		close(establishedSocket);

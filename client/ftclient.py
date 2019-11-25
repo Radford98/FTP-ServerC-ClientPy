@@ -79,8 +79,10 @@ def RecData(controlSocket, dataPort):
 	try:
 		data = controlSocket.recv(1024).decode()
 	except:
+		pass
+	if len(data) == 0:
 		data = dataSock.recv(1024).decode()
-	print(data)
+
 	# If the file name was invalid, display the message from the server.
 	if data.find("Invalid", 0, 10) != -1:	# This is a "minus one," not "dash l" for listing
 		print(data)
